@@ -291,18 +291,14 @@ public class ServerListener extends SessionAdapter {
         while (session.isConnected()) {
             KeepAliveState currentKeepAliveState = this.keepAliveState;
             if (currentKeepAliveState != null) {
-                if (System.currentTimeMillis() - currentKeepAliveState.keepAliveTime >= KEEPALIVE_TIMEOUT_MS) {
-                    if (currentKeepAliveState.keepAlivePending) {
+                if (currentKeepAliveState.hasTimedOut()) {
+                    if (currentKeepAliveState.isPending()) {
                         session.disconnect(Component.translatable("disconnect.timeout"));
                         break;
                     }
 
-                    long time = System.currentTimeMillis();
-
-                    currentKeepAliveState.keepAlivePending = true;
-                    currentKeepAliveState.keepAliveChallenge = time;
-                    currentKeepAliveState.keepAliveTime = time;
-                    session.send(new ClientboundKeepAlivePacket(currentKeepAliveState.keepAliveChallenge));
+                    long challenge = currentKeepAliveState.generateChallenge();
+                    session.send(new ClientboundKeepAlivePacket(challenge));
                 }
             }
 
@@ -319,5 +315,21 @@ public class ServerListener extends SessionAdapter {
         private boolean keepAlivePending;
         private long keepAliveChallenge;
         private long keepAliveTime = System.currentTimeMillis();
+
+        public boolean hasTimedOut() {
+            return System.currentTimeMillis() - this.keepAliveTime >= KEEPALIVE_TIMEOUT_MS;
+        }
+
+        public boolean isPending() {
+            return this.keepAlivePending;
+        }
+
+        public long generateChallenge() {
+            long time = System.currentTimeMillis();
+            this.keepAlivePending = true;
+            this.keepAliveChallenge = time;
+            this.keepAliveTime = time;
+            return time;
+        }
     }
 }
